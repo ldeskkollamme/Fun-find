@@ -1,0 +1,596 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Number Challenge — Multiplayer Number Finder</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;500;600;700&family=Space+Grotesk:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
+<style>
+  :root{
+    --pink:#FF4D8D; --amber:#FFB020; --violet:#7C5CFF; --teal:#2DE1C2; --sky:#38BDF8;
+    --ink:#070312; --card:rgba(255,255,255,.06); --line:rgba(255,255,255,.14);
+  }
+  *{ -webkit-tap-highlight-color: transparent; }
+  body{ background:var(--ink); color:#fff; font-family:'Space Grotesk',sans-serif; min-height:100vh; overflow-x:hidden; }
+  .font-display{ font-family:'Fredoka',sans-serif; }
+
+  .blob{ position:fixed; border-radius:9999px; filter:blur(90px); z-index:0; pointer-events:none; opacity:.55; }
+  .blob-a{ width:420px;height:420px; background:radial-gradient(circle at 30% 30%, #FF4D8D, transparent 65%); top:-120px; left:-100px; animation:drift 14s ease-in-out infinite alternate; }
+  .blob-b{ width:380px;height:380px; background:radial-gradient(circle at 60% 40%, #7C5CFF, transparent 65%); bottom:-110px; right:-80px; animation:drift 17s ease-in-out infinite alternate-reverse; }
+  .blob-c{ width:300px;height:300px; background:radial-gradient(circle at 50% 50%, #FFB020, transparent 65%); top:38%; left:55%; animation:drift 20s ease-in-out infinite alternate; opacity:.35; }
+  @keyframes drift{ from{ transform:translate(0,0) scale(1);} to{ transform:translate(40px,30px) scale(1.12);} }
+
+  .glass{ background:var(--card); border:1px solid var(--line); backdrop-filter:blur(18px); -webkit-backdrop-filter:blur(18px); }
+  .card{
+    background:linear-gradient(160deg, rgba(255,255,255,.09), rgba(255,255,255,.04));
+    border:1px solid var(--line); backdrop-filter:blur(20px);
+    box-shadow:0 30px 60px -20px rgba(0,0,0,.65), inset 0 1px 0 rgba(255,255,255,.12);
+  }
+  .grad-text{
+    background:linear-gradient(90deg,#FF4D8D 0%, #FFB020 35%, #7C5CFF 70%, #2DE1C2 100%);
+    -webkit-background-clip:text; background-clip:text; color:transparent;
+  }
+  .btn{ transition:transform .18s cubic-bezier(.2,.9,.3,1.4), box-shadow .18s ease, filter .18s ease; }
+  .btn:hover{ transform:translateY(-3px) scale(1.01); }
+  .btn:active{ transform:translateY(0) scale(.98); }
+  .btn-primary{ background:linear-gradient(135deg,#FF4D8D, #FF6A3D 45%, #FFB020); box-shadow:0 14px 40px -8px rgba(255,77,141,.65); }
+  .btn-violet{ background:linear-gradient(135deg,#7C5CFF,#4F8DFF); box-shadow:0 14px 40px -8px rgba(124,92,255,.65); }
+  .btn-teal{ background:linear-gradient(135deg,#2DE1C2,#22C55E); box-shadow:0 14px 40px -8px rgba(45,225,194,.55); color:#04221c; }
+  .btn-ghost{ background:rgba(255,255,255,.06); border:1px solid var(--line); backdrop-filter:blur(8px); }
+
+  .code-box{
+    width:44px; height:56px; border-radius:16px; display:flex; align-items:center; justify-content:center;
+    font-family:'Fredoka'; font-size:1.5rem; font-weight:600;
+    background:linear-gradient(180deg, rgba(255,255,255,.14), rgba(255,255,255,.05));
+    border:1px solid var(--line);
+    box-shadow:inset 0 1px 0 rgba(255,255,255,.2), 0 10px 24px -10px rgba(0,0,0,.5);
+  }
+
+  .num-circle{
+    width:clamp(52px, 8vw, 78px); height:clamp(52px, 8vw, 78px); border-radius:9999px;
+    display:flex; align-items:center; justify-content:center;
+    font-family:'Fredoka'; font-weight:600; font-size:clamp(1rem, 1.8vw, 1.35rem);
+    background:linear-gradient(160deg, rgba(255,255,255,.14), rgba(255,255,255,.05));
+    border:1px solid var(--line);
+    box-shadow:inset 0 1px 0 rgba(255,255,255,.18), 0 12px 26px -12px rgba(0,0,0,.6);
+    cursor:pointer;
+    transition:transform .16s cubic-bezier(.2,.9,.3,1.5), box-shadow .2s ease, background .2s ease, border-color .2s ease;
+  }
+  .num-circle:hover:not(:disabled){ transform:translateY(-4px) scale(1.06); border-color:rgba(255,176,32,.7); box-shadow:0 16px 34px -10px rgba(255,77,141,.5); }
+  .num-circle.picked{ background:linear-gradient(135deg,#7C5CFF,#4F8DFF); border-color:#8f7bff; box-shadow:0 0 0 4px rgba(124,92,255,.25), 0 16px 36px -8px rgba(124,92,255,.7); }
+  .num-circle.found{ background:linear-gradient(135deg,#2DE1C2,#22C55E); border-color:#5ef0d5; color:#042; box-shadow:0 0 0 4px rgba(45,225,194,.25), 0 16px 36px -8px rgba(45,225,194,.7); animation:pop .5s cubic-bezier(.2,1.6,.4,1); }
+  .num-circle.miss{ background:linear-gradient(135deg,#FF4D8D,#E11D48); border-color:#ff7ba6; box-shadow:0 0 0 4px rgba(255,77,141,.25); animation:shake .45s ease; }
+  .num-circle:disabled{ cursor:default; opacity:.85; }
+  .num-circle.enter{ animation:fadeUp .35s ease backwards; }
+  @keyframes pop{ 0%{transform:scale(.6);} 60%{transform:scale(1.18);} 100%{transform:scale(1);} }
+  @keyframes shake{ 0%,100%{transform:translateX(0);} 25%{transform:translateX(-7px);} 50%{transform:translateX(7px);} 75%{transform:translateX(-4px);} }
+  @keyframes fadeUp{ from{opacity:0; transform:translateY(10px) scale(.9);} to{opacity:1; transform:none;} }
+
+  .spinner{ width:18px;height:18px;border-radius:50%; border:3px solid rgba(255,255,255,.2); border-top-color:#FFB020; animation:spin 1s linear infinite; }
+  @keyframes spin{ to{ transform:rotate(360deg);} }
+  .pulse-ring{ animation:pulse 2s ease-in-out infinite; }
+  @keyframes pulse{ 0%,100%{ box-shadow:0 0 0 0 rgba(255,176,32,.45);} 50%{ box-shadow:0 0 0 12px rgba(255,176,32,0);} }
+
+  .round-dot{
+    width:100%; height:10px; border-radius:99px; background:rgba(255,255,255,.1);
+    border:1px solid rgba(255,255,255,.12); transition:background .3s ease, box-shadow .3s ease;
+  }
+  .round-dot.p0{ background:linear-gradient(90deg,#FFB020,#FF6A3D); box-shadow:0 0 12px -2px rgba(255,176,32,.8); }
+  .round-dot.p1{ background:linear-gradient(90deg,#2DE1C2,#38BDF8); box-shadow:0 0 12px -2px rgba(45,225,194,.8); }
+  .round-dot.miss{ background:rgba(255,77,141,.45); }
+  .round-dot.active{ background:rgba(255,255,255,.35); animation:blink 1.2s ease-in-out infinite; }
+  @keyframes blink{ 50%{ opacity:.35; } }
+
+  .overlay{
+    position:fixed; inset:0; z-index:60; display:flex; align-items:center; justify-content:center;
+    padding:1rem; background:rgba(7,3,18,.72); backdrop-filter:blur(14px); -webkit-backdrop-filter:blur(14px);
+    animation:fadeIn .25s ease;
+  }
+  @keyframes fadeIn{ from{opacity:0;} to{opacity:1;} }
+  .overlay-card{ animation:rise .5s cubic-bezier(.2,.9,.3,1.25); }
+  @keyframes rise{ from{opacity:0; transform:translateY(26px) scale(.95);} to{opacity:1; transform:none;} }
+
+  .confetti{ position:fixed; top:-12px; width:9px; height:14px; z-index:70; pointer-events:none; border-radius:2px; animation:fall linear forwards; }
+  @keyframes fall{ to{ transform:translateY(105vh) rotate(720deg); opacity:.15; } }
+
+  ::-webkit-scrollbar{ width:8px; height:8px; }
+  ::-webkit-scrollbar-thumb{ background:linear-gradient(#FF4D8D,#7C5CFF); border-radius:8px; }
+  ::-webkit-scrollbar-track{ background:rgba(255,255,255,.05); }
+  input:focus{ outline:2px solid #FFB020; outline-offset:2px; }
+</style>
+</head>
+<body class="antialiased">
+
+<div class="blob blob-a"></div>
+<div class="blob blob-b"></div>
+<div class="blob blob-c"></div>
+
+<main class="relative z-10 mx-auto flex min-h-screen w-full max-w-5xl flex-col items-center justify-center px-4 py-10">
+
+  <!-- Header -->
+  <header class="mb-8 text-center" id="pageHeader">
+    <div class="mb-3 inline-flex items-center gap-3 rounded-full glass px-5 py-2 text-[10px] sm:text-xs tracking-[.3em] uppercase" style="color:#FFB020">
+      <span class="h-2 w-2 rounded-full" style="background:linear-gradient(135deg,#FF4D8D,#FFB020)"></span>
+      Multiplayer · 10 Rounds per Level · High Energy
+    </div>
+    <h1 class="font-display leading-[.95] text-[clamp(2.6rem,7vw,5.2rem)] font-semibold tracking-tight">
+      NUMBER<br /><span class="grad-text italic">CHALLENGE</span>
+    </h1>
+    <p class="mx-auto mt-4 max-w-md text-sm text-white/60 sm:text-base">
+      Level 1 runs <strong class="text-white/90">10 rounds</strong> with <strong class="text-white/90">10 circles</strong> each. One player hides a number, the other hunts it. Highest score at the end of the level takes the crown.
+    </p>
+  </header>
+
+  <!-- ============ LOGIN ============ -->
+  <section id="screen-login" class="card w-full max-w-lg rounded-[32px] p-6 sm:p-8">
+    <h2 class="font-display text-3xl font-semibold">Hop on the ladder.</h2>
+    <p class="mt-2 text-sm text-white/60">Pick a name, then create a challenge room or join a friend's with their 6-digit code.</p>
+
+    <label class="mt-7 block text-xs font-semibold uppercase tracking-[.25em] text-[#2DE1C2]">Player name
+      <input id="nameInput" maxlength="14" placeholder="e.g. Comet Ada" autocomplete="off"
+        class="mt-2 w-full rounded-2xl border border-white/10 bg-white/5 px-5 py-4 text-base text-white placeholder-white/30 backdrop-blur" />
+    </label>
+
+    <div class="mt-6 grid gap-4 sm:grid-cols-2">
+      <button id="btnCreate" class="btn btn-primary font-display rounded-2xl px-6 py-5 text-lg font-semibold">Create Room</button>
+      <button id="btnJoinToggle" class="btn btn-violet font-display rounded-2xl px-6 py-5 text-lg font-semibold">Join Room</button>
+    </div>
+
+    <div id="joinPanel" class="hidden space-y-4 pt-6">
+      <label class="block text-xs font-semibold uppercase tracking-[.25em] text-[#FFB020]">6-digit code
+        <input id="codeInput" inputmode="numeric" maxlength="6" placeholder="000000" autocomplete="off"
+          class="mt-2 w-full rounded-2xl border border-white/10 bg-white/5 px-5 py-4 text-center text-3xl tracking-[.5em] font-display text-white placeholder-white/20 backdrop-blur" />
+      </label>
+      <button id="btnJoinGo" class="btn btn-ghost font-display w-full rounded-2xl px-6 py-5 text-lg font-semibold" style="border-color:rgba(255,176,32,.5)">Join with code</button>
+    </div>
+
+    <div class="mt-8 rounded-3xl border border-white/10 bg-white/5 p-5 backdrop-blur">
+      <h3 class="text-xs font-bold uppercase tracking-[.3em] text-white/50">How it plays</h3>
+      <ul class="mt-3 grid gap-3 text-sm text-white/70">
+        <li class="flex gap-3"><span class="text-[#FF4D8D] font-display">01</span> Each round opens with a chooser — tap one of the 10 circles to hide its number.</li>
+        <li class="flex gap-3"><span class="text-[#FFB020] font-display">02</span> Circles shuffle. The hunter scans and finds the number to score a point.</li>
+        <li class="flex gap-3"><span class="text-[#2DE1C2] font-display">03</span> Roles flip every round. After 10 rounds the level winner is crowned.</li>
+        <li class="flex gap-3"><span class="text-[#7C5CFF] font-display">04</span> Then choose: climb to the next level, or replay the same one.</li>
+      </ul>
+    </div>
+  </section>
+
+  <!-- ============ LOBBY ============ -->
+  <section id="screen-lobby" class="card hidden w-full max-w-lg rounded-[32px] p-6 text-center sm:p-8">
+    <h2 class="font-display text-3xl font-semibold">Your room is live.</h2>
+    <div class="my-7">
+      <p class="text-xs font-semibold uppercase tracking-[.3em] text-white/50">Share this 6-digit code</p>
+      <div id="codeBoxes" class="mt-4 flex flex-wrap items-center justify-center gap-3"></div>
+    </div>
+    <div id="lobbyPlayers" class="grid gap-3"></div>
+    <div id="lobbyWaiting" class="mt-6 flex items-center justify-center gap-3 text-sm text-white/60">
+      <span class="spinner"></span> Waiting for an opponent to join…
+    </div>
+    <button id="btnSim" class="btn btn-ghost font-display mt-5 hidden w-full rounded-2xl px-6 py-4 text-base font-semibold" style="border-color:rgba(45,225,194,.45)">Simulate incoming opponent</button>
+    <button id="btnStart" class="btn btn-primary font-display mt-5 hidden w-full rounded-2xl px-6 py-5 text-xl font-semibold pulse-ring">Start Level 1 · 10 Rounds</button>
+    <button id="btnLobbyBack" class="mt-4 text-xs uppercase tracking-[.3em] text-white/40 hover:text-white/70">← Back to login</button>
+  </section>
+
+  <!-- ============ GAME ============ -->
+  <section id="screen-game" class="card hidden w-full max-w-5xl rounded-[32px] p-5 sm:p-8">
+    <div class="flex flex-wrap items-center justify-between gap-4">
+      <div>
+        <h2 class="font-display text-2xl font-semibold sm:text-3xl">
+          Level <span id="levelNum" class="grad-text">1</span>
+        </h2>
+        <p class="mt-1 text-xs font-bold uppercase tracking-[.3em] text-white/45">
+          Round <span id="roundNum" class="text-white/80">1</span> of 10 · <span id="optionCount">10 circles</span>
+        </p>
+      </div>
+      <div class="flex gap-3" id="scoreChips"></div>
+    </div>
+
+    <div class="mt-4 h-3 overflow-hidden rounded-full bg-white/5 border border-white/10">
+      <div id="progressBar" class="h-full rounded-full" style="width:5%; background:linear-gradient(90deg,#FF4D8D,#FFB020,#2DE1C2,#7C5CFF); transition:width .5s cubic-bezier(.2,.9,.3,1);"></div>
+    </div>
+
+    <div id="roundDots" class="mt-3 grid grid-cols-10 gap-1.5"></div>
+
+    <!-- Turn card -->
+    <div class="mt-6 rounded-3xl border border-white/10 bg-white/5 p-5 text-center backdrop-blur sm:p-7">
+      <p id="turnKicker" class="text-xs font-bold uppercase tracking-[.3em] text-[#FFB020]">Chooser up</p>
+      <h3 id="turnTitle" class="font-display mt-2 text-2xl font-semibold sm:text-[2rem] leading-tight">—</h3>
+      <p id="turnSub" class="mx-auto mt-2 max-w-lg text-sm text-white/60">—</p>
+      <div id="targetChip" class="mt-4 hidden items-center justify-center gap-3">
+        <span class="text-xs uppercase tracking-[.3em] text-white/50">Find</span>
+        <span id="targetNum" class="font-display rounded-2xl px-6 py-3 text-4xl font-semibold" style="background:linear-gradient(135deg,#FF4D8D,#FFB020); box-shadow:0 14px 34px -8px rgba(255,77,141,.7);">0</span>
+      </div>
+    </div>
+
+    <p id="resultBanner" class="font-display mt-5 min-h-[1.8rem] text-center text-lg font-semibold"></p>
+
+    <div id="circleBoard" class="mt-3 flex flex-wrap items-center justify-center gap-3 sm:gap-4 rounded-3xl border border-white/10 bg-white/5 p-5 backdrop-blur" style="max-height:46vh; overflow-y:auto;"></div>
+
+    <button id="btnQuitGame" class="btn btn-ghost font-display mx-auto mt-5 block rounded-2xl px-6 py-3 text-sm font-semibold">Quit to menu</button>
+  </section>
+
+  <!-- ============ END (match over) ============ -->
+  <section id="screen-end" class="card hidden w-full max-w-lg rounded-[32px] p-8 text-center">
+    <h2 class="font-display text-4xl font-semibold">Challenge <span class="grad-text italic">complete.</span></h2>
+    <p class="mt-3 text-sm text-white/60">Every level conquered. From 10 circles upward — legend behavior.</p>
+    <div id="endScore" class="mt-6 grid grid-cols-2 gap-4"></div>
+    <p id="endVerdict" class="font-display mt-6 text-2xl font-semibold"></p>
+    <button id="btnAgain" class="btn btn-primary font-display mt-7 w-full rounded-2xl px-6 py-5 text-lg font-semibold">Play again</button>
+  </section>
+</main>
+
+<!-- ============ LEVEL COMPLETE OVERLAY ============ -->
+<div id="levelOverlay" class="overlay hidden">
+  <div class="overlay-card card w-full max-w-lg rounded-[32px] p-6 text-center sm:p-8">
+    <p class="text-xs font-bold uppercase tracking-[.35em]" style="color:#FFB020">Level <span id="ovLevel">1</span> complete · 10 rounds played</p>
+    <h2 id="ovTitle" class="font-display mt-3 text-[clamp(1.8rem,5vw,2.6rem)] font-semibold leading-tight">—</h2>
+    <p id="ovSub" class="mt-2 text-sm text-white/60">—</p>
+
+    <div id="ovScores" class="mt-6 grid grid-cols-2 gap-4"></div>
+
+    <div class="mt-5 rounded-3xl border border-white/10 bg-white/5 p-4 text-left backdrop-blur">
+      <p class="text-[10px] font-bold uppercase tracking-[.3em] text-white/45">Round breakdown</p>
+      <div id="ovDots" class="mt-3 grid grid-cols-10 gap-1.5"></div>
+      <div class="mt-3 flex flex-wrap gap-4 text-[10px] uppercase tracking-[.2em] text-white/50">
+        <span class="flex items-center gap-2"><span class="h-2 w-5 rounded-full" style="background:linear-gradient(90deg,#FFB020,#FF6A3D)"></span><span id="ovLegend1">P1</span></span>
+        <span class="flex items-center gap-2"><span class="h-2 w-5 rounded-full" style="background:linear-gradient(90deg,#2DE1C2,#38BDF8)"></span><span id="ovLegend2">P2</span></span>
+        <span class="flex items-center gap-2"><span class="h-2 w-5 rounded-full" style="background:rgba(255,77,141,.45)"></span>Missed</span>
+      </div>
+    </div>
+
+    <div class="mt-7 grid gap-3 sm:grid-cols-2">
+      <button id="btnNextLevel" class="btn btn-primary font-display rounded-2xl px-6 py-5 text-lg font-semibold">Next Level →</button>
+      <button id="btnRepeatLevel" class="btn btn-violet font-display rounded-2xl px-6 py-5 text-lg font-semibold">↻ Repeat Level</button>
+    </div>
+    <button id="btnOverlayQuit" class="mt-5 text-xs uppercase tracking-[.3em] text-white/40 hover:text-white/70">Quit to menu</button>
+  </div>
+</div>
+
+<script>
+(function(){
+  const $ = (id) => document.getElementById(id);
+  const screens = ['screen-login','screen-lobby','screen-game','screen-end'];
+  function show(id){
+    screens.forEach(s => $(s).classList.toggle('hidden', s !== id));
+    $('pageHeader').classList.toggle('hidden', id === 'screen-game');
+    window.scrollTo({ top:0, behavior:'smooth' });
+  }
+
+  const ROUNDS = 10;          // 10 rounds per level
+  const BASE_OPTIONS = 10;    // level 1 => 10 circles
+  const MAX_LEVELS = 100;
+
+  const S = {
+    p1: 'Comet Ada',
+    p2: 'Nova',
+    code: null,
+    isHost: true,
+    twoPlayers: false,
+    level: 1,
+    round: 1,
+    options: [],
+    target: null,
+    phase: 'choose',   // choose | reveal | find | done
+    locked: false,
+    levelScores: [0,0],
+    totalScores: [0,0],
+    history: []        // per round: 0 | 1 | -1 (miss)
+  };
+
+  const names = () => [S.p1, S.p2];
+  const optionCountFor = (lvl) => Math.min(60, BASE_OPTIONS + (lvl - 1) * 2);
+  const chooserFor = (round) => (round % 2 === 1 ? 0 : 1);
+
+  function genOptions(count){
+    const pool = Math.max(count + 40, 60);
+    const set = new Set();
+    while(set.size < count){ set.add(1 + Math.floor(Math.random() * pool)); }
+    return Array.from(set);
+  }
+  function shuffle(arr){
+    const a = arr.slice();
+    for(let i=a.length-1;i>0;i--){ const j = Math.floor(Math.random()*(i+1)); [a[i],a[j]]=[a[j],a[i]]; }
+    return a;
+  }
+
+  /* ---------------- Login ---------------- */
+  $('btnJoinToggle').addEventListener('click', () => {
+    $('joinPanel').classList.toggle('hidden');
+    if(!$('joinPanel').classList.contains('hidden')) $('codeInput').focus();
+  });
+
+  $('btnCreate').addEventListener('click', () => {
+    S.p1 = $('nameInput').value.trim() || 'Comet Ada';
+    S.code = String(Math.floor(100000 + Math.random()*900000));
+    S.isHost = true; S.twoPlayers = false;
+    renderLobby(); show('screen-lobby');
+  });
+
+  $('btnJoinGo').addEventListener('click', () => {
+    const code = $('codeInput').value.trim();
+    if(code.length !== 6){
+      $('codeInput').style.outline = '3px solid #FF4D8D';
+      setTimeout(()=>$('codeInput').style.outline='', 900);
+      return;
+    }
+    S.p1 = $('nameInput').value.trim() || 'Comet Ada';
+    S.code = code; S.isHost = false; S.twoPlayers = true;
+    renderLobby(); show('screen-lobby');
+  });
+
+  /* ---------------- Lobby ---------------- */
+  function renderLobby(){
+    const boxes = $('codeBoxes'); boxes.innerHTML = '';
+    S.code.split('').forEach(d => {
+      const b = document.createElement('div');
+      b.className = 'code-box'; b.textContent = d;
+      boxes.appendChild(b);
+    });
+
+    const wrap = $('lobbyPlayers'); wrap.innerHTML = '';
+    const list = S.twoPlayers ? [S.p1, S.p2] : [S.p1];
+    list.forEach((n,i) => {
+      const row = document.createElement('div');
+      row.className = 'flex items-center justify-between rounded-3xl border border-white/10 bg-white/5 px-5 py-5 backdrop-blur';
+      row.innerHTML = `<div class="flex items-center gap-4">
+          <span class="h-4 w-4 rounded-full" style="background:linear-gradient(135deg,${i===0?'#FF4D8D,#FFB020':'#7C5CFF,#2DE1C2'})"></span>
+          <div class="text-left"><p class="font-display text-lg font-semibold">${n}</p>
+          <p class="text-[10px] uppercase tracking-[.25em] text-white/40">${i===0 ? (S.isHost?'Host · You':'Player One · You') : 'Opponent'}</p></div>
+        </div>
+        <span class="rounded-full px-4 py-1.5 text-[10px] font-bold uppercase tracking-[.2em]" style="background:rgba(45,225,194,.15); color:#2DE1C2; border:1px solid rgba(45,225,194,.4)">Online</span>`;
+      wrap.appendChild(row);
+    });
+
+    $('lobbyWaiting').classList.toggle('hidden', S.twoPlayers);
+    $('btnSim').classList.toggle('hidden', S.twoPlayers);
+    $('btnStart').classList.toggle('hidden', !S.twoPlayers);
+  }
+
+  $('btnSim').addEventListener('click', () => { S.twoPlayers = true; renderLobby(); });
+  $('btnLobbyBack').addEventListener('click', () => show('screen-login'));
+
+  $('btnStart').addEventListener('click', () => {
+    S.level = 1;
+    S.totalScores = [0,0];
+    beginLevel(true);
+    show('screen-game');
+  });
+
+  /* ---------------- Game ---------------- */
+  function beginLevel(resetTotals){
+    S.round = 1;
+    S.levelScores = [0,0];
+    S.history = [];
+    if(resetTotals === true && S.level === 1) S.totalScores = [0,0];
+    startRound();
+  }
+
+  function startRound(){
+    const count = optionCountFor(S.level);
+    S.options = genOptions(count);
+    S.target = null;
+    S.phase = 'choose';
+    S.locked = false;
+    renderHeader();
+    const chooser = chooserFor(S.round);
+    $('turnKicker').textContent = 'Chooser up · Round ' + S.round + ' of ' + ROUNDS;
+    $('turnKicker').style.color = chooser === 0 ? '#FFB020' : '#2DE1C2';
+    $('turnTitle').innerHTML = names()[chooser] + ', <span class="grad-text italic">think a number.</span>';
+    $('turnSub').textContent = 'Tap any circle in the field to hide its number. There are ' + count + ' options this level — pick wisely.';
+    $('resultBanner').textContent = '';
+    $('targetChip').classList.add('hidden');
+    $('targetChip').classList.remove('flex');
+    renderBoard(false);
+  }
+
+  function renderHeader(){
+    $('levelNum').textContent = S.level;
+    $('roundNum').textContent = S.round;
+    $('optionCount').textContent = optionCountFor(S.level) + ' circles' + (S.phase === 'find' ? ' · shuffled' : '');
+    renderScoreChips();
+    const done = S.history.length;
+    const pct = Math.max(4, ((done + (S.phase === 'find' ? 0.5 : 0)) / ROUNDS) * 100);
+    $('progressBar').style.width = pct + '%';
+    renderDots($('roundDots'), true);
+  }
+
+  function renderDots(container, markActive){
+    container.innerHTML = '';
+    for(let i=0;i<ROUNDS;i++){
+      const d = document.createElement('div');
+      d.className = 'round-dot';
+      if(i < S.history.length){
+        const r = S.history[i];
+        d.classList.add(r === -1 ? 'miss' : (r === 0 ? 'p0' : 'p1'));
+      } else if(markActive && i === S.history.length){
+        d.classList.add('active');
+      }
+      container.appendChild(d);
+    }
+  }
+
+  function renderScoreChips(){
+    $('scoreChips').innerHTML = names().map((n,i) => `
+      <div class="rounded-2xl border border-white/10 bg-white/5 px-4 py-2.5 text-center backdrop-blur">
+        <p class="text-[10px] font-bold uppercase tracking-[.2em] text-white/50">${n}</p>
+        <p class="font-display text-2xl font-semibold leading-none mt-1" style="color:${i===0?'#FFB020':'#2DE1C2'}">${S.levelScores[i]}</p>
+        <p class="text-[9px] uppercase tracking-[.15em] text-white/35 mt-1">total ${S.totalScores[i]}</p>
+      </div>`).join('');
+  }
+
+  function renderBoard(shuffled){
+    const board = $('circleBoard');
+    board.innerHTML = '';
+    const list = shuffled ? shuffle(S.options) : S.options.slice();
+    list.forEach((num, idx) => {
+      const c = document.createElement('button');
+      c.className = 'num-circle enter';
+      c.style.animationDelay = (idx * 22) + 'ms';
+      c.textContent = num;
+      c.dataset.num = num;
+      board.appendChild(c);
+    });
+  }
+
+  $('circleBoard').addEventListener('click', (e) => {
+    const btn = e.target.closest('.num-circle');
+    if(!btn || S.locked || btn.disabled) return;
+    const num = Number(btn.dataset.num);
+    const chooser = chooserFor(S.round);
+    const finder = 1 - chooser;
+
+    /* --- chooser hides a number --- */
+    if(S.phase === 'choose'){
+      S.locked = true;
+      S.target = num;
+      S.phase = 'reveal';
+      btn.classList.add('picked');
+      document.querySelectorAll('#circleBoard .num-circle').forEach(c => c.disabled = true);
+      $('resultBanner').textContent = names()[chooser] + ' hid a number… shuffling.';
+      $('resultBanner').style.color = 'rgba(255,255,255,.6)';
+
+      setTimeout(() => {
+        S.phase = 'find';
+        S.locked = false;
+        $('targetNum').textContent = S.target;
+        $('targetChip').classList.remove('hidden');
+        $('targetChip').classList.add('flex');
+        $('turnKicker').textContent = 'Hunter up · scan fast';
+        $('turnKicker').style.color = finder === 0 ? '#FFB020' : '#2DE1C2';
+        $('turnTitle').innerHTML = names()[finder] + ', find <span class="grad-text italic">the hidden number.</span>';
+        $('turnSub').textContent = 'The circles just shuffled. Tap the circle carrying the target to bank a point.';
+        $('resultBanner').textContent = '';
+        renderBoard(true);
+        renderHeader();
+      }, 850);
+      return;
+    }
+
+    /* --- hunter searches --- */
+    if(S.phase === 'find'){
+      S.locked = true;
+      S.phase = 'done';
+      const banner = $('resultBanner');
+
+      if(num === S.target){
+        btn.classList.add('found');
+        S.levelScores[finder] += 1;
+        S.totalScores[finder] += 1;
+        S.history.push(finder);
+        banner.textContent = names()[finder] + ' found it! +1 point.';
+        banner.style.color = '#2DE1C2';
+      } else {
+        btn.classList.add('miss');
+        S.history.push(-1);
+        banner.textContent = 'Miss — no points. The number was ' + S.target + '.';
+        banner.style.color = '#FF4D8D';
+      }
+      document.querySelectorAll('#circleBoard .num-circle').forEach(c => {
+        if(Number(c.dataset.num) === S.target) c.classList.add('found');
+        c.disabled = true;
+      });
+      renderScoreChips();
+      renderDots($('roundDots'), false);
+      $('progressBar').style.width = ((S.history.length / ROUNDS) * 100) + '%';
+
+      setTimeout(() => {
+        if(S.round >= ROUNDS){ finishLevel(); }
+        else { S.round += 1; startRound(); }
+      }, 1350);
+    }
+  });
+
+  /* ---------------- Level complete ---------------- */
+  function finishLevel(){
+    const [a,b] = S.levelScores;
+    $('ovLevel').textContent = S.level;
+    $('ovLegend1').textContent = S.p1;
+    $('ovLegend2').textContent = S.p2;
+
+    let title, sub, color;
+    if(a === b){
+      title = 'Dead heat.';
+      sub = 'Both hunters finished level ' + S.level + ' on ' + a + ' points. Run it back or climb higher.';
+      color = '#FF4D8D';
+    } else {
+      const wi = a > b ? 0 : 1;
+      title = names()[wi] + ' wins level ' + S.level + '!';
+      sub = 'Final score ' + Math.max(a,b) + ' – ' + Math.min(a,b) + ' across 10 rounds.';
+      color = wi === 0 ? '#FFB020' : '#2DE1C2';
+      burst(color);
+    }
+    $('ovTitle').innerHTML = title.replace(/(wins|Dead heat)/, '<span class="grad-text italic">$1</span>');
+    $('ovTitle').style.color = '#fff';
+    $('ovSub').textContent = sub;
+
+    $('ovScores').innerHTML = names().map((n,i) => {
+      const win = S.levelScores[i] > S.levelScores[1-i];
+      return `<div class="rounded-3xl border p-5 backdrop-blur" style="border-color:${win ? (i===0?'rgba(255,176,32,.55)':'rgba(45,225,194,.55)') : 'rgba(255,255,255,.1)'}; background:${win ? (i===0?'rgba(255,176,32,.1)':'rgba(45,225,194,.1)') : 'rgba(255,255,255,.05)'}">
+        <p class="text-[10px] font-bold uppercase tracking-[.25em] text-white/50">${n}${win?' · winner':''}</p>
+        <p class="font-display mt-1 text-5xl font-semibold" style="color:${i===0?'#FFB020':'#2DE1C2'}">${S.levelScores[i]}</p>
+        <p class="mt-1 text-[10px] uppercase tracking-[.2em] text-white/40">match total ${S.totalScores[i]}</p>
+      </div>`;
+    }).join('');
+
+    renderDots($('ovDots'), false);
+    $('btnNextLevel').textContent = S.level >= MAX_LEVELS ? 'Finish Match →' : 'Next Level →';
+    $('levelOverlay').classList.remove('hidden');
+  }
+
+  $('btnNextLevel').addEventListener('click', () => {
+    $('levelOverlay').classList.add('hidden');
+    if(S.level >= MAX_LEVELS){ endMatch(); return; }
+    S.level += 1;
+    beginLevel(false);
+  });
+
+  $('btnRepeatLevel').addEventListener('click', () => {
+    $('levelOverlay').classList.add('hidden');
+    beginLevel(false);   // same level, fresh 10 rounds
+  });
+
+  $('btnOverlayQuit').addEventListener('click', () => {
+    $('levelOverlay').classList.add('hidden');
+    show('screen-login');
+  });
+
+  /* ---------------- End of match ---------------- */
+  function endMatch(){
+    show('screen-end');
+    $('endScore').innerHTML = names().map((n,i) => `
+      <div class="rounded-3xl border border-white/10 bg-white/5 p-6 backdrop-blur">
+        <p class="text-[10px] font-bold uppercase tracking-[.25em] text-white/50">${n}</p>
+        <p class="font-display mt-1 text-5xl font-semibold" style="color:${i===0?'#FFB020':'#2DE1C2'}">${S.totalScores[i]}</p>
+      </div>`).join('');
+    const [a,b] = S.totalScores;
+    $('endVerdict').textContent = a === b ? 'Dead heat — rematch!' : (a > b ? S.p1 + ' wins the ladder.' : S.p2 + ' wins the ladder.');
+    $('endVerdict').style.color = a > b ? '#FFB020' : (b > a ? '#2DE1C2' : '#FF4D8D');
+    burst('#FFB020');
+  }
+
+  $('btnAgain').addEventListener('click', () => show('screen-login'));
+  $('btnQuitGame').addEventListener('click', () => show('screen-login'));
+
+  /* ---------------- Confetti ---------------- */
+  function burst(color){
+    const colors = [color, '#FF4D8D', '#7C5CFF', '#2DE1C2', '#FFB020'];
+    for(let i=0;i<48;i++){
+      const p = document.createElement('div');
+      p.className = 'confetti';
+      p.style.left = Math.random()*100 + 'vw';
+      p.style.background = colors[i % colors.length];
+      p.style.animationDuration = (1.8 + Math.random()*1.6) + 's';
+      p.style.animationDelay = (Math.random()*0.5) + 's';
+      p.style.opacity = 0.9;
+      document.body.appendChild(p);
+      setTimeout(() => p.remove(), 4200);
+    }
+  }
+
+  show('screen-login');
+})();
+</script>
+</body>
+</html>
